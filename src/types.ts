@@ -118,11 +118,16 @@ export interface CellRendererProps<TRow, TSummaryRow>
   column: CalculatedColumn<TRow, TSummaryRow>;
   colSpan: number | undefined;
   row: TRow;
+  rowIdx: number;
   isCopied: boolean;
   isDraggedOver: boolean;
   isCellSelected: boolean;
+  isRanged?: Maybe<boolean | undefined>;
+  enableRangeSelect?: Maybe<boolean | undefined>;
   dragHandle: ReactElement<React.HTMLAttributes<HTMLDivElement>> | undefined;
   onRowChange: (newRow: TRow) => void;
+  onRangeSelecting: Maybe<(pos: Position) => void>;
+  onRangeChanging: Maybe<(pos: Position) => void>;
 }
 
 export interface RowRendererProps<TRow, TSummaryRow = unknown>
@@ -142,6 +147,8 @@ export interface RowRendererProps<TRow, TSummaryRow = unknown>
   onRowChange: (rowIdx: number, newRow: TRow) => void;
   onRowClick: Maybe<(row: TRow, column: CalculatedColumn<TRow, TSummaryRow>) => void>;
   onRowDoubleClick: Maybe<(row: TRow, column: CalculatedColumn<TRow, TSummaryRow>) => void>;
+  onRangeSelectBegin?: Maybe<(begin: Position) => void>;
+  onRangeChanging: Maybe<(pos: Position) => void>;
   rowClass: Maybe<(row: TRow) => Maybe<string>>;
   setDraggedOverRowIdx: ((overRowIdx: number) => void) | undefined;
   selectCell: (

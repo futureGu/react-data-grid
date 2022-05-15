@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { css } from '@linaria/core';
 
-import { getCellStyle, getCellClassname, isCellEditable } from './utils';
+import { getCellStyle, getCellClassname, isCellEditable, MouseStateUtils } from './utils';
 import type { CellRendererProps } from './types';
 import { useRovingCellRef } from './hooks';
 
@@ -21,28 +21,39 @@ const cellDraggedOver = css`
 
 const cellDraggedOverClassname = `rdg-cell-dragged-over ${cellDraggedOver}`;
 
+const cellRanged = css`
+  background-color: #4e8098;
+`;
+
+const cellRangedClassname = `rdg-cell-ranged ${cellRanged}`;
+
 function Cell<R, SR>({
   column,
   colSpan,
   isCellSelected,
   isCopied,
   isDraggedOver,
+  isRanged,
+  enableRangeSelect,
   row,
+  rowIdx,
   dragHandle,
   onRowClick,
   onRowDoubleClick,
   onRowChange,
+  onRangeSelecting,
+  onRangeChanging,
   selectCell,
   ...props
 }: CellRendererProps<R, SR>) {
   const { ref, tabIndex, onFocus } = useRovingCellRef(isCellSelected);
-
   const { cellClass } = column;
   const className = getCellClassname(
     column,
     {
       [cellCopiedClassname]: isCopied,
-      [cellDraggedOverClassname]: isDraggedOver
+      [cellDraggedOverClassname]: isDraggedOver,
+      [cellRangedClassname]: !isCellSelected && isRanged
     },
     typeof cellClass === 'function' ? cellClass(row) : cellClass
   );
@@ -65,6 +76,24 @@ function Cell<R, SR>({
     onRowDoubleClick?.(row, column);
   }
 
+  function handleMouseDown() {
+    if (enableRangeSelect) {
+      selectCellWrapper();
+      MouseStateUtils.setMouseState(true);
+      onRangeSelecting?.({ idx: column.idx, rowIdx });
+    }
+  }
+
+  function handleMouseOver() {
+    if (enableRangeSelect && MouseStateUtils.getMouseState()) {
+      onRangeChanging?.({ idx: column.idx, rowIdx });
+    }
+  }
+
+  function handleMouseUp() {
+    MouseStateUtils.setMouseState(false);
+  }
+
   return (
     <div
       role="gridcell"
@@ -80,6 +109,9 @@ function Cell<R, SR>({
       onDoubleClick={handleDoubleClick}
       onContextMenu={handleContextMenu}
       onFocus={onFocus}
+      onMouseDown={handleMouseDown}
+      onMouseOver={handleMouseOver}
+      onMouseUp={handleMouseUp}
       {...props}
     >
       {!column.rowGroup && (

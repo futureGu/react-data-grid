@@ -3,10 +3,10 @@ import type { RefAttributes } from 'react';
 import clsx from 'clsx';
 
 import Cell from './Cell';
-import { RowSelectionProvider, useLatestFunc } from './hooks';
+import { RowSelectionProvider, useLatestFunc, useRangeSelection } from './hooks';
 import { getColSpan, getRowStyle } from './utils';
 import { rowClassname, rowSelectedClassname } from './style';
-import type { RowRendererProps } from './types';
+import type { Position, RowRendererProps } from './types';
 
 function Row<R, SR>(
   {
@@ -29,6 +29,8 @@ function Row<R, SR>(
     setDraggedOverRowIdx,
     onMouseEnter,
     onRowChange,
+    onRangeSelectBegin,
+    onRangeChanging,
     selectCell,
     ...props
   }: RowRendererProps<R, SR>,
@@ -38,9 +40,19 @@ function Row<R, SR>(
     onRowChange(rowIdx, newRow);
   });
 
+  const [enableRangeSelect, isRanged] = useRangeSelection();
+
   function handleDragEnter(event: React.MouseEvent<HTMLDivElement>) {
     setDraggedOverRowIdx?.(rowIdx);
     onMouseEnter?.(event);
+  }
+
+  function handleRangeSelecting(pos: Position) {
+    onRangeSelectBegin?.(pos);
+  }
+
+  function handleRangeChanging(pos: Position) {
+    onRangeChanging?.(pos);
   }
 
   className = clsx(
@@ -74,13 +86,18 @@ function Row<R, SR>(
           column={column}
           colSpan={colSpan}
           row={row}
+          rowIdx={rowIdx}
           isCopied={copiedCellIdx === idx}
           isDraggedOver={draggedOverCellIdx === idx}
           isCellSelected={isCellSelected}
+          isRanged={isRanged({ idx, rowIdx })}
+          enableRangeSelect={enableRangeSelect}
           dragHandle={isCellSelected ? selectedCellDragHandle : undefined}
           onRowClick={onRowClick}
           onRowDoubleClick={onRowDoubleClick}
           onRowChange={handleRowChange}
+          onRangeSelecting={handleRangeSelecting}
+          onRangeChanging={handleRangeChanging}
           selectCell={selectCell}
         />
       );

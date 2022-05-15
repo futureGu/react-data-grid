@@ -7,3 +7,5 @@ export * from './useRovingCellRef';
 export * from './useRowSelection';
 export * from './useViewportColumns';
 export * from './useViewportRows';
+export * from './useRangeSelection';
+export * from './useMouseState';

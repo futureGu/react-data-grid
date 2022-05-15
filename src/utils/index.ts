@@ -5,6 +5,7 @@ export * from './domUtils';
 export * from './keyboardUtils';
 export * from './selectedCellUtils';
 export * from './styleUtils';
+export * from './mouseStateUtils';
 
 export const { min, max, round, floor, sign, abs, ceil } = Math;
 
@@ -23,7 +24,7 @@ export function clampColumnWidth<R, SR>(
   width = max(width, minWidth);
 
   // ignore maxWidth if it less than minWidth
-  if (typeof maxWidth === 'number' && maxWidth >= minWidth) {
+  if (typeof maxWidth === 'number' && maxWidth > minWidth) {
     return min(width, maxWidth);
   }
 

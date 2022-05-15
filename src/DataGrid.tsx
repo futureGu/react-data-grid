@@ -17,7 +17,9 @@ import {
   useViewportColumns,
   useViewportRows,
   useLatestFunc,
-  RowSelectionChangeProvider
+  RowSelectionChangeProvider,
+  RangeSelectionProvider,
+  ConstRangePosition
 } from './hooks';
 import HeaderRow from './HeaderRow';
 import Row from './Row';
@@ -41,8 +43,7 @@ import {
   getColSpan,
   sign,
   abs,
-  getSelectedCellColSpan,
-  scrollIntoView
+  getSelectedCellColSpan
 } from './utils';
 
 import type {
@@ -95,7 +96,8 @@ type SharedDivProps = Pick<
   'aria-label' | 'aria-labelledby' | 'aria-describedby' | 'className' | 'style'
 >;
 
-export interface DataGridProps<R, SR = unknown, K extends Key = Key> extends SharedDivProps {
+export interface DataGridProps<R extends object, SR = unknown, K extends Key = Key>
+  extends SharedDivProps {
   /**
    * Grid and data Props
    */
@@ -186,7 +188,7 @@ export interface DataGridProps<R, SR = unknown, K extends Key = Key> extends Sha
  *
  * <DataGrid columns={columns} rows={rows} />
  */
-function DataGrid<R, SR, K extends Key>(
+function DataGrid<R extends object, SR, K extends Key>(
   {
     // Grid and data Props
     columns: rawColumns,
@@ -254,6 +256,7 @@ function DataGrid<R, SR, K extends Key>(
    */
   const [scrollTop, setScrollTop] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
+  const [range, setRange] = useState(ConstRangePosition);
   const [columnWidths, setColumnWidths] = useState<ReadonlyMap<string, number>>(() => new Map());
   const [selectedPosition, setSelectedPosition] = useState<SelectCellState | EditCellState<R>>(
     initialPosition
@@ -406,10 +409,10 @@ function DataGrid<R, SR, K extends Key>(
     }
 
     prevSelectedPosition.current = selectedPosition;
+    scrollToCell(selectedPosition);
 
     if (selectedPosition.idx === -1) {
       rowRef.current!.focus({ preventScroll: true });
-      scrollIntoView(rowRef.current);
     }
   });
 
@@ -430,7 +433,9 @@ function DataGrid<R, SR, K extends Key>(
 
   useImperativeHandle(ref, () => ({
     element: gridRef.current,
-    scrollToColumn,
+    scrollToColumn(idx: number) {
+      scrollToCell({ idx });
+    },
     scrollToRow(rowIdx: number) {
       const { current } = gridRef;
       if (!current) return;
@@ -728,18 +733,19 @@ function DataGrid<R, SR, K extends Key>(
       setSelectedPosition({ ...position, mode: 'EDIT', row, originalRow: row });
     } else if (isSamePosition(selectedPosition, position)) {
       // Avoid re-renders if the selected cell state is the same
-      scrollIntoView(gridRef.current?.querySelector('[tabindex="0"]'));
+      // TODO: replace with a #record? https://github.com/microsoft/TypeScript/issues/39831
+      scrollToCell(position);
     } else {
       setSelectedPosition({ ...position, mode: 'SELECT' });
     }
   }
 
-  function scrollToColumn(idx: number): void {
+  function scrollToCell({ idx, rowIdx }: Partial<Position>): void {
     const { current } = gridRef;
     if (!current) return;
 
-    if (idx > lastFrozenColumnIndex) {
-      const { rowIdx } = selectedPosition;
+    if (typeof idx === 'number' && idx > lastFrozenColumnIndex) {
+      rowIdx ??= selectedPosition.rowIdx;
       if (!isCellWithinSelectionBounds({ rowIdx, idx })) return;
       const { clientWidth } = current;
       const column = columns[idx];
@@ -767,6 +773,18 @@ function DataGrid<R, SR, K extends Key>(
         current.scrollLeft = (left - totalFrozenColumnWidth) * sign;
       } else if (isCellAtRightBoundary) {
         current.scrollLeft = (right - clientWidth) * sign;
+      }
+    }
+
+    if (typeof rowIdx === 'number' && isRowIdxWithinViewportBounds(rowIdx)) {
+      const rowTop = getRowTop(rowIdx);
+      const rowHeight = getRowHeight(rowIdx);
+      if (rowTop < scrollTop) {
+        // at top boundary, scroll to the row's top
+        current.scrollTop = rowTop;
+      } else if (rowTop + rowHeight > scrollTop + clientHeight) {
+        // at bottom boundary, scroll the next row's top to the bottom of the viewport
+        current.scrollTop = rowTop + rowHeight - clientHeight;
       }
     }
   }
@@ -920,6 +938,42 @@ function DataGrid<R, SR, K extends Key>(
     );
   }
 
+  function batchWrite(row: R, idx: number) {
+    if (!range.enabled) return;
+    const { key } = columns[idx];
+    const nValue = Reflect.get(row, key);
+    const [minX, maxX] = cmp(range.begin.idx, range.end.idx);
+    const [minY, maxY] = cmp(range.begin.rowIdx, range.end.rowIdx);
+
+    const cols = [];
+    for (let idx = minX; idx < maxX + 1; idx++) {
+      const { key } = columns[idx];
+      cols.push(key);
+    }
+
+    for (let rIdx = minY; rIdx < maxY + 1; rIdx++) {
+      const r = rawRows[getRawRowIdx(rIdx)];
+      cols.forEach((key) => {
+        Reflect.set(r, key, nValue);
+      });
+    }
+    range.begin = { idx: -1, rowIdx: -1 };
+    range.end = { idx: -1, rowIdx: -1 };
+  }
+
+  function cmp(a: number, b: number) {
+    let minX: number;
+    let maxX: number;
+    if (a < b) {
+      minX = a;
+      maxX = b;
+    } else {
+      minX = b;
+      maxX = a;
+    }
+    return [minX, maxX];
+  }
+
   function getCellEditor(rowIdx: number) {
     if (selectedPosition.rowIdx !== rowIdx || selectedPosition.mode === 'SELECT') return;
 
@@ -934,6 +988,7 @@ function DataGrid<R, SR, K extends Key>(
     const onRowChange = (row: R, commitChanges?: boolean) => {
       if (commitChanges) {
         updateRow(selectedPosition.rowIdx, row);
+        batchWrite(row, range.begin.idx);
         closeEditor();
       } else {
         setSelectedPosition((position) => ({ ...position, row }));
@@ -953,6 +1008,9 @@ function DataGrid<R, SR, K extends Key>(
         row={row}
         onRowChange={onRowChange}
         closeEditor={closeEditor}
+        scrollToCell={() => {
+          scrollToCell(selectedPosition);
+        }}
       />
     );
   }
@@ -976,6 +1034,14 @@ function DataGrid<R, SR, K extends Key>(
           ];
     }
     return viewportColumns;
+  }
+
+  function handleRangeBegin(pos: Position) {
+    setRange({ ...range, begin: pos, end: pos });
+  }
+
+  function handleRangeChanging(pos: Position) {
+    setRange({ ...range, end: pos });
   }
 
   function getViewportRows() {
@@ -1065,6 +1131,8 @@ function DataGrid<R, SR, K extends Key>(
           isRowSelected={isRowSelected}
           onRowClick={onRowClick}
           onRowDoubleClick={onRowDoubleClick}
+          onRangeChanging={handleRangeChanging}
+          onRangeSelectBegin={handleRangeBegin}
           rowClass={rowClass}
           gridRowStart={gridRowStart}
           height={getRowHeight(rowIdx)}
@@ -1124,15 +1192,6 @@ function DataGrid<R, SR, K extends Key>(
       style={
         {
           ...style,
-          // set scrollPadding to correctly position non-sticky cells after scrolling
-          scrollPaddingInlineStart:
-            selectedPosition.idx > lastFrozenColumnIndex
-              ? `${totalFrozenColumnWidth}px`
-              : undefined,
-          scrollPaddingBlock:
-            selectedPosition.rowIdx >= 0 && selectedPosition.rowIdx < rows.length
-              ? `${headerRowHeight}px ${summaryRowsCount * summaryRowHeight}px`
-              : undefined,
           gridTemplateRows: templateRows,
           '--rdg-header-row-height': `${headerRowHeight}px`,
           '--rdg-summary-row-height': `${summaryRowHeight}px`,
@@ -1180,7 +1239,7 @@ function DataGrid<R, SR, K extends Key>(
         ) : (
           <>
             <RowSelectionChangeProvider value={selectRowLatest}>
-              {getViewportRows()}
+              <RangeSelectionProvider value={range}>{getViewportRows()}</RangeSelectionProvider>
             </RowSelectionChangeProvider>
             {summaryRows?.map((row, rowIdx) => {
               const gridRowStart = headerRowsCount + rows.length + rowIdx + 1;
@@ -1222,6 +1281,6 @@ function isSamePosition(p1: Position, p2: Position) {
   return p1.idx === p2.idx && p1.rowIdx === p2.rowIdx;
 }
 
-export default forwardRef(DataGrid) as <R, SR = unknown, K extends Key = Key>(
+export default forwardRef(DataGrid) as <R extends object, SR = unknown, K extends Key = Key>(
   props: DataGridProps<R, SR, K> & RefAttributes<DataGridHandle>
 ) => JSX.Element;
