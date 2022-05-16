@@ -351,6 +351,7 @@ export default function CommonFeatures({ direction }: Props) {
         sortable: true,
         resizable: true
       }}
+      enableRangeSelection
       selectedRows={selectedRows}
       onSelectedRowsChange={setSelectedRows}
       onRowsChange={setRows}

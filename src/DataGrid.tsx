@@ -10,6 +10,7 @@ import {
   rowSelected,
   rowSelectedWithFrozenCell
 } from './style';
+import type { RangePosition } from './hooks';
 import {
   useLayoutEffect,
   useGridDimensions,
@@ -19,7 +20,7 @@ import {
   useLatestFunc,
   RowSelectionChangeProvider,
   RangeSelectionProvider,
-  ConstRangePosition
+  DefaultPosition
 } from './hooks';
 import HeaderRow from './HeaderRow';
 import Row from './Row';
@@ -114,6 +115,7 @@ export interface DataGridProps<R extends object, SR = unknown, K extends Key = K
   rowKeyGetter?: Maybe<(row: R) => K>;
   onRowsChange?: Maybe<(rows: R[], data: RowsChangeData<R, SR>) => void>;
 
+  enableRangeSelection?: Maybe<boolean>;
   /**
    * Dimensions props
    */
@@ -200,6 +202,7 @@ function DataGrid<R extends object, SR, K extends Key>(
     rowHeight,
     headerRowHeight: rawHeaderRowHeight,
     summaryRowHeight: rawSummaryRowHeight,
+    enableRangeSelection,
     // Feature props
     selectedRows,
     onSelectedRowsChange,
@@ -256,7 +259,11 @@ function DataGrid<R extends object, SR, K extends Key>(
    */
   const [scrollTop, setScrollTop] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
-  const [range, setRange] = useState(ConstRangePosition);
+  const [range, setRange] = useState<RangePosition>({
+    enabled: enableRangeSelection === true,
+    begin: DefaultPosition,
+    end: DefaultPosition
+  });
   const [columnWidths, setColumnWidths] = useState<ReadonlyMap<string, number>>(() => new Map());
   const [selectedPosition, setSelectedPosition] = useState<SelectCellState | EditCellState<R>>(
     initialPosition

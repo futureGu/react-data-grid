@@ -7,13 +7,16 @@ export interface RangePosition {
   end: Position;
 }
 
-export const ConstRangePosition: RangePosition = {
-  enabled: true,
-  begin: { idx: -1, rowIdx: -1 },
-  end: { idx: -1, rowIdx: -1 }
+export const DefaultPosition: Position = {
+  idx: -1,
+  rowIdx: -1
 };
 
-const RangeSelectionContext = createContext<RangePosition>(ConstRangePosition);
+const RangeSelectionContext = createContext<RangePosition>({
+  enabled: false,
+  begin: DefaultPosition,
+  end: DefaultPosition
+});
 
 export const RangeSelectionProvider = RangeSelectionContext.Provider;
 

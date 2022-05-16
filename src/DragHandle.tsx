@@ -22,7 +22,7 @@ const cellDragHandle = css`
 
 const cellDragHandleClassname = `rdg-cell-drag-handle ${cellDragHandle}`;
 
-interface Props<R, SR> extends Pick<DataGridProps<R, SR>, 'rows' | 'onRowsChange'> {
+interface Props<R extends object, SR> extends Pick<DataGridProps<R, SR>, 'rows' | 'onRowsChange'> {
   columns: readonly CalculatedColumn<R, SR>[];
   selectedPosition: SelectCellState;
   latestDraggedOverRowIdx: React.MutableRefObject<number | undefined>;
