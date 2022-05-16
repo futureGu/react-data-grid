@@ -75,6 +75,9 @@ export default function Nav({ direction, onDirectionChange }: Props) {
       <h1>react-data-grid</h1>
 
       <h2>Demos</h2>
+      <NavLink to="/range-selection" end className={getActiveClassname}>
+        Range Selection
+      </NavLink>
       <NavLink to="/common-features" end className={getActiveClassname}>
         Common Features
       </NavLink>

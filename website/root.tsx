@@ -24,6 +24,7 @@ import RowsReordering from './demos/RowsReordering';
 import ScrollToRow from './demos/ScrollToRow';
 import TreeView from './demos/TreeView';
 import VariableRowHeight from './demos/VariableRowHeight';
+import RangeSelection from './demos/RangeSelection';
 
 css`
   @at-root {
@@ -90,6 +91,7 @@ function Root() {
       <main className={mainClassname} dir={direction}>
         <Routes>
           <Route index element={<Navigate to="common-features" replace />} />
+          <Route path="range-selection" element={<RangeSelection direction={direction} />} />
           <Route path="common-features" element={<CommonFeatures direction={direction} />} />
           <Route path="all-features" element={<AllFeatures direction={direction} />} />
           <Route path="cell-navigation" element={<CellNavigation direction={direction} />} />

@@ -97,8 +97,7 @@ type SharedDivProps = Pick<
   'aria-label' | 'aria-labelledby' | 'aria-describedby' | 'className' | 'style'
 >;
 
-export interface DataGridProps<R extends object, SR = unknown, K extends Key = Key>
-  extends SharedDivProps {
+export interface DataGridProps<R, SR = unknown, K extends Key = Key> extends SharedDivProps {
   /**
    * Grid and data Props
    */
@@ -115,7 +114,11 @@ export interface DataGridProps<R extends object, SR = unknown, K extends Key = K
   rowKeyGetter?: Maybe<(row: R) => K>;
   onRowsChange?: Maybe<(rows: R[], data: RowsChangeData<R, SR>) => void>;
 
+  /** enable range selection */
   enableRangeSelection?: Maybe<boolean>;
+  /** range selected cell is edited... */
+  onRangeSelectionEdited?: Maybe<(columns: string[], rows: R[], newVal: unknown) => boolean>;
+
   /**
    * Dimensions props
    */
@@ -190,7 +193,7 @@ export interface DataGridProps<R extends object, SR = unknown, K extends Key = K
  *
  * <DataGrid columns={columns} rows={rows} />
  */
-function DataGrid<R extends object, SR, K extends Key>(
+function DataGrid<R, SR, K extends Key>(
   {
     // Grid and data Props
     columns: rawColumns,
@@ -203,6 +206,7 @@ function DataGrid<R extends object, SR, K extends Key>(
     headerRowHeight: rawHeaderRowHeight,
     summaryRowHeight: rawSummaryRowHeight,
     enableRangeSelection,
+    onRangeSelectionEdited,
     // Feature props
     selectedRows,
     onSelectedRowsChange,
@@ -945,40 +949,9 @@ function DataGrid<R extends object, SR, K extends Key>(
     );
   }
 
-  function batchWrite(row: R, idx: number) {
-    if (!range.enabled) return;
-    const { key } = columns[idx];
-    const nValue = Reflect.get(row, key);
-    const [minX, maxX] = cmp(range.begin.idx, range.end.idx);
-    const [minY, maxY] = cmp(range.begin.rowIdx, range.end.rowIdx);
-
-    const cols = [];
-    for (let idx = minX; idx < maxX + 1; idx++) {
-      const { key } = columns[idx];
-      cols.push(key);
-    }
-
-    for (let rIdx = minY; rIdx < maxY + 1; rIdx++) {
-      const r = rawRows[getRawRowIdx(rIdx)];
-      cols.forEach((key) => {
-        Reflect.set(r, key, nValue);
-      });
-    }
-    range.begin = { idx: -1, rowIdx: -1 };
-    range.end = { idx: -1, rowIdx: -1 };
-  }
-
-  function cmp(a: number, b: number) {
-    let minX: number;
-    let maxX: number;
-    if (a < b) {
-      minX = a;
-      maxX = b;
-    } else {
-      minX = b;
-      maxX = a;
-    }
-    return [minX, maxX];
+  function positionCmp(a: number, b: number) {
+    if (a < b) return [a, b];
+    return [b, a];
   }
 
   function getCellEditor(rowIdx: number) {
@@ -995,8 +968,28 @@ function DataGrid<R extends object, SR, K extends Key>(
     const onRowChange = (row: R, commitChanges?: boolean) => {
       if (commitChanges) {
         updateRow(selectedPosition.rowIdx, row);
-        batchWrite(row, range.begin.idx);
         closeEditor();
+        if (range.enabled && range.begin.idx >= 0) {
+          const nValue = JSON.parse(JSON.stringify(row))[columns[range.begin.idx].key];
+          const [min, max] = positionCmp(range.begin.idx, range.end.idx);
+          const cols: string[] = [];
+          for (let idx = min; idx < max + 1; idx++) {
+            cols.push(columns[idx].key);
+          }
+          const [minR, maxR] = positionCmp(range.begin.rowIdx, range.end.rowIdx);
+          const selectedRows: R[] = [];
+          for (let rowIdx = minR; rowIdx < maxR + 1; rowIdx++) {
+            selectedRows.push(rawRows[getRawRowIdx(rowIdx)]);
+          }
+          const rst = onRangeSelectionEdited?.(cols, selectedRows, nValue);
+          if (rst) {
+            setRange({
+              enabled: enableRangeSelection === true,
+              begin: DefaultPosition,
+              end: DefaultPosition
+            });
+          }
+        }
       } else {
         setSelectedPosition((position) => ({ ...position, row }));
       }
@@ -1288,6 +1281,6 @@ function isSamePosition(p1: Position, p2: Position) {
   return p1.idx === p2.idx && p1.rowIdx === p2.rowIdx;
 }
 
-export default forwardRef(DataGrid) as <R extends object, SR = unknown, K extends Key = Key>(
+export default forwardRef(DataGrid) as <R, SR = unknown, K extends Key = Key>(
   props: DataGridProps<R, SR, K> & RefAttributes<DataGridHandle>
 ) => JSX.Element;

@@ -54,7 +54,9 @@ interface SummaryRow {
   yesCount: number;
 }
 
-interface Row {
+type RowBase = Record<string, unknown>;
+
+interface Row extends RowBase {
   id: number;
   title: string;
   client: string;
@@ -342,6 +344,17 @@ export default function CommonFeatures({ direction }: Props) {
     });
   }, [rows, sortColumns]);
 
+  function handleRangeSelectionEdited(cols: string[], selectedRows: Row[], newVal: unknown) {
+    selectedRows.forEach((e) => {
+      const r = { ...e };
+      for (const col of cols) {
+        r[col] = newVal;
+      }
+      setRows((rows) => rows.map((e) => (e.id === r.id ? r : e)));
+    });
+    return true;
+  }
+
   const gridElement = (
     <DataGrid
       rowKeyGetter={rowKeyGetter}
@@ -351,6 +364,8 @@ export default function CommonFeatures({ direction }: Props) {
         sortable: true,
         resizable: true
       }}
+      enableRangeSelection
+      onRangeSelectionEdited={handleRangeSelectionEdited}
       selectedRows={selectedRows}
       onSelectedRowsChange={setSelectedRows}
       onRowsChange={setRows}
